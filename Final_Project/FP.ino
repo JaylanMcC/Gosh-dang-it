@@ -1,11 +1,3 @@
-//  I need to add commoemts to the code show whatI have done for the day. 
-//  I need to also know how to add the  information about how we wull be changing up. 
-
-
-
-
-
-
 #include <M5Core2.h>
 #include <WiFi.h>
 #include "secrets.h"
@@ -47,15 +39,15 @@ const uint16_t profColors[] = { RED, BLUE, GREEN };
 int currentProf = 0;
 int phraseTally[NUM_PROFS][NUM_PHRASES] = {0};
 
-// ---------- Long-press (20s) config ----------
-const unsigned long HOLD_MS = 5000; // 5 seconds .. this means that you hold it 10 sec
-bool lpArmed = false;                // are we timing a hold?
-bool lpFired = false;                // did we already trigger during this hold?
-unsigned long lpStartMs = 0;         // when the hold started
+// ---------- Long-press (5s) config ----------
+const unsigned long HOLD_MS = 5000; // === Changed: 5 seconds (was 20s)
+bool lpArmed = false;                
+bool lpFired = false;                
+unsigned long lpStartMs = 0;         
 
 // ------------- Declarations -------------
 void drawUI();
-bool pushAllToThingSpeak(); // send all prof tallies (fields 1..6) + current + total
+bool pushAllToThingSpeak(); 
 void flashLedsSequence(uint8_t rounds=2, uint16_t onMs=120, uint16_t gapMs=80);
 static uint16_t textColorFor(uint16_t bg);
 
@@ -104,8 +96,8 @@ bool pushAllToThingSpeak() {
   }
 
   // Field mapping:
-  // 1: P0-phrase1, 2: P0-phrase2, 3: P1-phrase1, 4: P1-phrase2,
-  // 5: P2-phrase1, 6: P2-phrase2, 7: currentProf, 8: grand total
+  // 1..6: tally per professor/phrase
+  // 7: currentProf, 8: grand total
   ThingSpeak.setField(1, phraseTally[0][0]);
   ThingSpeak.setField(2, phraseTally[0][1]);
   ThingSpeak.setField(3, phraseTally[1][0]);
@@ -157,6 +149,17 @@ void flashLedsSequence(uint8_t rounds, uint16_t onMs, uint16_t gapMs) {
 void setup() {
   M5.begin();
   Serial.begin(115200);
+ // --- Startup Splash screen ---
+  M5.Lcd.fillScreen(WHITE);
+  M5.Lcd.setTextSize(4);
+  M5.Lcd.setTextColor(BLUE, WHITE);
+  M5.Lcd.setCursor(30, 100);
+  M5.Lcd.println("GOSH");
+  M5.Lcd.setCursor(30, 160);
+  M5.Lcd.println("DARN IT");
+  delay(5000); // show 5s, then continue
+
+  M5.Lcd.fillScreen(BLACK);
 
   // LEDs
   pinMode(LED1, OUTPUT); pinMode(LED2, OUTPUT); pinMode(LED3, OUTPUT);
@@ -195,31 +198,26 @@ void loop() {
   // --- External button 1 (phrase1 tally + long-press detection) ---
   bool b1Pressed = (digitalRead(BUTTON_PIN1) == LOW);
 
-  // Edge: button1 pressed now (LOW) and previously not pressed
   if (b1Pressed && lastButtonState1 == HIGH) {
-    // Increment phrase1 for current professor on initial press
-    ++phraseTally[currentProf][0];
+    ++phraseTally[currentProf][0]; // short press = tally phrase1
     Serial.printf("Tally %s:%s = %d\n",
                   professors[currentProf], phrases[0], phraseTally[currentProf][0]);
     drawUI();
 
-    // Start long-press timing
-    lpArmed = true;
-    lpFired = false;
-    lpStartMs = millis();
+    lpArmed = true; lpFired = false; lpStartMs = millis();
   }
 
-  // While holding, check duration
   if (b1Pressed && lpArmed && !lpFired) {
     unsigned long held = millis() - lpStartMs;
-    // Optional: show countdown (small overlay)
-    if (held % 1000 < 50) {
+
+    if (held % 1000 < 50) { // small countdown overlay
       M5.Lcd.setCursor(10, 190);
       M5.Lcd.setTextColor(YELLOW, profColors[currentProf]);
       M5.Lcd.printf("Hold Btn1: %lus / 5s   ", held / 1000);
     }
+
     if (held >= HOLD_MS) {
-      // 20s reached: send all data to ThingSpeak, then flash LEDs
+      // === Added: Send ALL + show splash after 5s hold ===
       bool ok = pushAllToThingSpeak();
       if (ok) {
         flashLedsSequence(2, 120, 80);
@@ -232,32 +230,38 @@ void loop() {
         M5.Lcd.setTextColor(RED, profColors[currentProf]);
         M5.Lcd.println("WAIT (rate limit)");
       }
-      lpFired = true; // don’t retrigger until button released
+
+      // === Added: Show "GOSH DARN IT" after upload ===
+      M5.Lcd.fillScreen(WHITE);
+      M5.Lcd.setTextSize(4);
+      M5.Lcd.setTextColor(BLUE, WHITE);
+      M5.Lcd.setCursor(30, 100);
+      M5.Lcd.println("GOSH");
+      M5.Lcd.setCursor(30, 160);
+      M5.Lcd.println("DARN IT");
+      delay(5000); // show 5s
+      drawUI();    // return to UI
+
+      lpFired = true;
     }
   }
 
-  // Release: clear long-press state
-  if (!b1Pressed && lastButtonState1 == LOW) {
-    lpArmed = false;
-    lpFired = false;
-  }
-  lastButtonState1 = !b1Pressed; // store inverted
+  if (!b1Pressed && lastButtonState1 == LOW) { lpArmed = false; lpFired = false; }
+  lastButtonState1 = !b1Pressed; 
 
-  // --- External button 2 -> phrase2 tally (no long-press on this one) ---
+  // --- External button 2 (phrase2 tally) ---
   bool b2Pressed = (digitalRead(BUTTON_PIN2) == LOW);
   if (b2Pressed && lastButtonState2 == HIGH) {
     ++phraseTally[currentProf][1];
     Serial.printf("Tally %s:%s = %d\n",
                   professors[currentProf], phrases[1], phraseTally[currentProf][1]);
     drawUI();
-    delay(200); // debounce
+    delay(200);
   }
   lastButtonState2 = !b2Pressed;
 
-  // Built-in M5 buttons switch professor (and color)
+  // Built-in M5 buttons switch professor
   if (M5.BtnA.wasPressed()) { currentProf = 0; drawUI(); }
   if (M5.BtnB.wasPressed()) { currentProf = 1; drawUI(); }
   if (M5.BtnC.wasPressed()) { currentProf = 2; drawUI(); }
-
-  // NOTE: No auto-publish here anymore. Upload happens only on 20s hold of Btn1.
 }
