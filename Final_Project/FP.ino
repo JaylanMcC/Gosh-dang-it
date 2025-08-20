@@ -157,6 +157,18 @@ void flashLedsSequence(uint8_t rounds, uint16_t onMs, uint16_t gapMs) {
 void setup() {
   M5.begin();
   Serial.begin(115200);
+ // --- Splash screen ---
+  M5.Lcd.fillScreen(WHITE);                // background color
+  M5.Lcd.setTextSize(4);                   // make text big
+  M5.Lcd.setTextColor(BLUE, WHITE);        // text color (blue on white)
+  M5.Lcd.setCursor(30, 100);               // position text (x=30, y=100)
+  M5.Lcd.println("GOSH");
+  M5.Lcd.setCursor(30, 160);
+  M5.Lcd.println("DARN IT");
+  delay(5000);                             // show for 5 seconds
+
+  // --- After splash, clear and continue as normal ---
+  M5.Lcd.fillScreen(BLACK);
 
   // LEDs
   pinMode(LED1, OUTPUT); pinMode(LED2, OUTPUT); pinMode(LED3, OUTPUT);
